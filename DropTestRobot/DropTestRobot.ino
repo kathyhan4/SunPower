@@ -211,16 +211,15 @@ void LCD_user_interface() {
   }
 }
 
-
-void EEPROM_clear() { 
-// Short Arduino pins 12 and 13 every time you run on a new Arduino to reset the EEPROM
+//Clears the EEPROM of all drop counter data
+void EEPROM_clear() {
   int Z = 0;
   for (int i = DROP_COUNTER_MEMORY_SPREAD_START; i <= DROP_COUNTER_MEMORY_SPREAD_STOP; i+=2) {
     EEPROM.put(i, Z); 
   }
 }
 
-
+//Returns the last drop counter value and sets the drop counter index
 int EEPROM_read_last_count() {
 // Find and save the last drop count before the program reset occurred
   int intMaxNum = 0;
@@ -235,7 +234,7 @@ int EEPROM_read_last_count() {
   return intMaxNum; 
 }
 
-
+//Manuel control of all machine aspects
 void manual_control() {
   // Hold X to raise the module
   if (intX == 0) {
@@ -246,7 +245,7 @@ void manual_control() {
   
   // Hold Y to lower the module
   if (intY == 0) {
-    digitalWrite(FORWARD, LOW);  // Motor in reverse
+    digitalWrite(FORWARD, LOW); 
     digitalWrite(REVERSE, HIGH);
     digitalWrite(ENABLE, HIGH);  
   }  
@@ -284,15 +283,13 @@ void manual_control() {
   
   //Resets the drop counter
   if (intA == 0 && intSelect == 0){
-    
     EEPROM_clear();
     intDropCounter = 0;
   }
   
-  
-  
 }
 
+//Low pass filter for the current sense
 void filterCurrentSense() {
   //Clears the average
   intCurrentSenseAverage = 0;
@@ -314,11 +311,12 @@ void filterCurrentSense() {
   intCurrentSenseAverage = int(intCurrentSenseAverage / ANALOG_FILTER_ORDER);
 }
 
-
+//State machine
 void state_machine() {
-  //Serial.println(intState);
   switch (intState) {
-// Idle    
+    //=================
+    //Idle  
+    //=================  
     case 0:
       // Allow for manual adjustment before starting cycle    
       manual_control();
@@ -334,15 +332,18 @@ void state_machine() {
         //Calculates the unwind time
         intUnwindDelay = int(UNWIND_MS_PER_CM*intHeight);
       }
-      break; 
-// Lift      
+      break;
+    //================= 
+    //Lift
+    //=================      
     case 1:
-      // Transistion to next state
+      //Transistion to next state
       if (digitalRead(LIMITSWITCH) == HIGH) { // If switch is pressed, move to next state      
         intState = 2; 
         // Start millisDelay
         delayStart = millis(); // start delay
       }
+      //Checks for time out on lift
       else if (delayRunning && ((millis() - delayStart) >= (LIFT_TIMEOUT_ADDITION_MS+intUnwindDelay))){
         //Turns everything off and goes to idle state
         digitalWrite(FORWARD, LOW);  
@@ -361,59 +362,64 @@ void state_machine() {
         digitalWrite(MAGNET, LOW);  
         intState = 0;
       }
+      //Runs current state
       else {
         // Execute current state
         // Wind cable up to correct height until switch is pressed
         digitalWrite(FORWARD, HIGH);  // Motor in forward motion
         digitalWrite(REVERSE, LOW);
         digitalWrite(ENABLE, HIGH);
-        digitalWrite(MAGNET, LOW);  // Magnet off
+        digitalWrite(MAGNET, LOW);  
       }
-      
-      
-      break;       
-// Hold
+      break;     
+    //=================  
+    //Hold
+    //=================
     case 2:
-      
       delayRunning = true; // not finished delay yet
       // Turn magnet on and hold the module in the air
-      digitalWrite(FORWARD, LOW);  // Motor off
+      digitalWrite(FORWARD, LOW);  
       digitalWrite(REVERSE, LOW);
       digitalWrite(ENABLE, LOW);
-      digitalWrite(MAGNET, HIGH);  // Magnet on
+      digitalWrite(MAGNET, HIGH); 
       // check if delay has timed out after 1 sec
       if (delayRunning && ((millis() - delayStart) >= intHoldDelay)) {
-        delayRunning = false; // // prevent this code being run more then once
+        delayRunning = false;
         intState = 3;
         // Start millisDelay
         delayStart = millis(); // start delay
       }
-      
       break;
-// Unwind      
+      
+    //=================
+    //Unwind 
+    //=================     
     case 3:
       delayRunning = true; // not finished delay yet
       // Unwind some cable with extra slack    
-      digitalWrite(FORWARD, LOW);  // Motor in reverse
+      digitalWrite(FORWARD, LOW); 
       digitalWrite(REVERSE, HIGH);
       digitalWrite(ENABLE, HIGH);
-      digitalWrite(MAGNET, HIGH);  // Magnet on
-      // check if delay has timed out after 2 sec
+      digitalWrite(MAGNET, HIGH); 
+      
+      //Checks to see if we're done unwinding
       if (delayRunning && ((millis() - delayStart) >= intUnwindDelay)) {
-        delayRunning = false; // // prevent this code being run more then once
+        delayRunning = false;
         intState = 4;
       }
-      
       break;
-// Drop      
+
+    //=================
+    //Drop      
+    //=================
     case 4:
-    // Turn magnet off and drop module    
-      digitalWrite(FORWARD, LOW);  // Motor off
+      //Turn magnet off and drop module    
+      digitalWrite(FORWARD, LOW);  
       digitalWrite(REVERSE, LOW);
       digitalWrite(ENABLE, LOW);
-      digitalWrite(MAGNET, LOW);  // Magnet off
+      digitalWrite(MAGNET, LOW);  
       
-    // Loop until preferred number of drops is reached
+      //Loop until preferred number of drops is reached
       if (intDropCounter < intPresetDrops) {  
         intState = 5; 
         intDropCounter++;
@@ -422,7 +428,7 @@ void state_machine() {
         if (intDropCounterMem > DROP_COUNTER_MEMORY_SPREAD_STOP) {  // If exceed memory capacity, reset and overwrite data from the beginning
           intDropCounterMem = DROP_COUNTER_MEMORY_SPREAD_START; }
 
-        // Start millisDelay
+        //Start millisDelay
         delayStart = millis(); // start delay
         delayRunning = true; 
       }
@@ -431,21 +437,24 @@ void state_machine() {
 
       break;
 
-// Drop delay
+    //=================
+    //Drop delay
+    //=================
     case 5:
+      //Makes a small delay to allow limit switch state to reset
       if (delayRunning && ((millis() - delayStart) >= DROP_DELAY_MS)) {
         delayRunning = false; //
         intState = 1;
       } 
-      
       break; 
-// Default
+
+    //=================
+    //Default
+    //=================
     default:
       intState = 0;  // Return to Idle state
       break; 
   }
-
-
 
   //Checks for emergency abort
   if (intSelect == 0){
@@ -499,23 +508,37 @@ void setup() {
   digitalWrite(LOGIC_LOW,LOW);
   pinMode(ERASE_EEPROM,INPUT);
   digitalWrite(ERASE_EEPROM,HIGH);
-// Clear EEPROM values
+  
+  //Clear EEPROM values
   if (digitalRead(ERASE_EEPROM)== LOW) {
-    EEPROM_clear(); }
-// Initialize LCD display
+    EEPROM_clear(); 
+    }
+    
+  //Initialize LCD display
   LCD_display_init();
-  Serial.begin(115200);   // Begin Serial connection
-// Set up EEPROM value storage
+
+  //Begin Serial connection
+  Serial.begin(115200);   
+  
+  //Set up EEPROM value storage
   EEPROM.get(HEIGHT_MEMORY_LOC, intHeight);
   EEPROM.get(PRESET_DROP_MEMORY_LOC, intPresetDrops);
+
+  //Reads the drop counter
   intDropCounter = EEPROM_read_last_count(); 
 }
 
 
-void loop() {       
-  readIO();  // Read all user inputs
+void loop() {    
+  //Read all user inputs   
+  readIO();  
+
+  //Reads current sense and filters
   filterCurrentSense();
+
+  //Prints debug data
   print_IO(); 
+  
   
   //Run display delay every 200 micro-sec while running alongside a fast 10 micro-sec loop
   if (intDisplayCounter < 20) {
@@ -528,8 +551,7 @@ void loop() {
    
   //Run state machine and set delay  
   state_machine();
+
+  //Small delay 
   delay(10);
 }
-  
-
-// Things to finish: Pause, Magnet on/off, E-stop, Reset drop counter
