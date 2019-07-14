@@ -3,6 +3,8 @@
 #include <Wire.h>
 #include <EEPROM.h>
 LiquidCrystal_PCF8574 lcd(0x27); // set the LCD address to 0x27 for a 16 chars and 2 line display
+#include <NintendoExtensionCtrl.h>
+
 
 // Define Arduino pinout
 #define ENABLE 7
@@ -35,18 +37,18 @@ LiquidCrystal_PCF8574 lcd(0x27); // set the LCD address to 0x27 for a 16 chars a
 
 // Define variables
 int intState = 0;
-int intA = 1;
-int intB = 1;
-int intX = 1;
-int intY = 1;
-int intUp = 1;
-int intDown = 1;
-int intLeft = 1;
-int intRight = 1;
-int intStart = 1;
-int intSelect = 1;
-//int intPause = 0;
-int intLR = 1;
+boolean bolA = false;
+boolean bolB = false;
+boolean bolX = false;
+boolean bolY = false;
+boolean bolUp = false;
+boolean bolDown = false;
+boolean bolLeft = false;
+boolean bolRight = false;
+boolean bolStart = false;
+boolean bolSelect = false;
+boolean bolTriggerL = false;
+boolean bolTriggerR = false;
 int intHeight = 0; // height in cm
 int intDropCounter = 0;
 int intPresetDrops = 0;  
@@ -62,48 +64,60 @@ unsigned long delayStart = 0; // the time the delay started
 bool delayRunning = false; // true if still waiting for delay to finish
 bool bolMagnetOn = false;
 bool bolBReleasedBefore = true;
+SNESMiniController snes;
 
-
-// Create functions
-
+//Read all IO pins/user inputs from controller 
 void readIO() {  
-// Read all IO pins/user inputs from controller 
-  intA = digitalRead(A);
-  intB = digitalRead(B);
-  intX = digitalRead(X);
-  intY = digitalRead(Y);
-  intUp = digitalRead(UP);
-  intDown = digitalRead(DOWN);
-  intLeft = digitalRead(LEFT);
-  intRight = digitalRead(RIGHT);
-  intStart = digitalRead(START);
-  intSelect = digitalRead(SELECT);
-  intLR = digitalRead(LR);
+  //Reads the SNES controller
+  boolean success = snes.update();  // Get new data from the controller
+  if (success == true) {  // We've got data!
+    //snes.printDebug();  // Print all of the values!
+  }
+  else {  // Data is bad :(
+    Serial.print("SNES Disconnected!; ");
+    snes.reconnect();
+  }
+
+  //Parses out the SNES controller
+  bolA = snes.buttonA();
+  bolB = snes.buttonB();
+  bolX = snes.buttonX();
+  bolY = snes.buttonY();
+  bolUp = snes.dpadUp();
+  bolDown = snes.dpadDown();
+  bolLeft = snes.dpadLeft();
+  bolRight = snes.dpadRight();
+  bolStart = snes.buttonStart();
+  bolSelect = snes.buttonSelect();
+  bolTriggerL = snes.triggerL();
+  bolTriggerR = snes.triggerR();
+
+  //Reads the current sense
   intCurrentSense = analogRead(A1); 
   }
 
 
 void print_IO() {
   Serial.print("; X:");
-  Serial.print(intX);
+  Serial.print(bolX);
   Serial.print("; Y:");
-  Serial.print(intY);
+  Serial.print(bolY);
   Serial.print("; A:");
-  Serial.print(intA);
+  Serial.print(bolA);
   Serial.print("; B:");
-  Serial.print(intB);
+  Serial.print(bolB);
   Serial.print("; Up:");
-  Serial.print(intUp);
+  Serial.print(bolUp);
   Serial.print("; Down:");
-  Serial.print(intDown);
+  Serial.print(bolDown);
   Serial.print("; Left:");
-  Serial.print(intLeft);
+  Serial.print(bolLeft);
   Serial.print("; Right:");
-  Serial.print(intRight);
+  Serial.print(bolRight);
   Serial.print("; LR: ");
-  Serial.print(intLR);
+  Serial.print(bolTriggerL);
   Serial.print("; Select: ");
-  Serial.print(intSelect);
+  Serial.print(bolSelect);
 
   if (intState == 0){
     Serial.print("; State: Idle");
@@ -184,19 +198,19 @@ void LCD_user_interface() {
       lcd.blink(); 
       }
     //Change rows using the up and down buttons
-    if (intUp == 0) {
+    if (bolUp == true) {
       if (intLineNumber > 1) {
         intLineNumber--; }}
-    else if (intDown == 0) {
+    else if (bolDown == true) {
       if (intLineNumber < 2) {
         intLineNumber++; }}
     //Change the values by using the left and right buttons
-    else if (intRight == 0) { //  Use right button to increase value
+    else if (bolRight == true) { //  Use right button to increase value
       if (intLineNumber == 1) {
         intPresetDrops += 100; }  // increment PresetDrops by 100
       else if (intLineNumber == 2) {
         intHeight++; }}  // increment Height by 1
-    else if (intLeft == 0) {  //  Use left button to decrease value
+    else if (bolLeft == true) {  //  Use left button to decrease value
       if (intLineNumber == 1) {
         intPresetDrops -= 100;  
         if (intPresetDrops < 100) { // PresetDrops value of 100 drops is the lowest the user can choose
@@ -237,28 +251,28 @@ int EEPROM_read_last_count() {
 //Manuel control of all machine aspects
 void manual_control() {
   // Hold X to raise the module
-  if (intX == 0) {
+  if (bolX == true) {
     digitalWrite(FORWARD, HIGH);  // Motor in forward motion
     digitalWrite(REVERSE, LOW);
     digitalWrite(ENABLE, HIGH);
   }
   
   // Hold Y to lower the module
-  if (intY == 0) {
+  if (bolY == true) {
     digitalWrite(FORWARD, LOW); 
     digitalWrite(REVERSE, HIGH);
     digitalWrite(ENABLE, HIGH);  
   }  
 
   //Disables the motor  if nothing is pressed
-  if (intX == 1 && intY == 1){
+  if (bolX == false && bolY == false){
     digitalWrite(FORWARD, LOW);
     digitalWrite(REVERSE, LOW);
     digitalWrite(ENABLE, LOW);  
   }
 
   // Press B to turn on and off the magnet
-  if (intB == 0) {
+  if (bolB == true) {
     //Checks to see if the B button was release in a previous time
     if(bolBReleasedBefore == true){
       //Toggles the magnet on/off
@@ -277,12 +291,12 @@ void manual_control() {
   }
 
   //Checks for B button release
-  if (intB == 1){
+  if (bolB == false){
     bolBReleasedBefore = true;
   }
   
   //Resets the drop counter
-  if (intA == 0 && intSelect == 0){
+  if (bolA == true && bolSelect == true){
     EEPROM_clear();
     intDropCounter = 0;
   }
@@ -322,7 +336,7 @@ void state_machine() {
       manual_control();
       
       // Transistion to next state
-      if (intStart == 0) {  // Press Start button to begin the state machine
+      if (bolStart == true) {  // Press Start button to begin the state machine
         EEPROM.put(PRESET_DROP_MEMORY_LOC, intPresetDrops);
         EEPROM.put(HEIGHT_MEMORY_LOC, intHeight);
         intState = 1;  // Reset State variable to move onto the next case
@@ -457,7 +471,7 @@ void state_machine() {
   }
 
   //Checks for emergency abort
-  if (intSelect == 0){
+  if (bolSelect == true){
     //Turns everything off and goes to idle state
     digitalWrite(FORWARD, LOW);  
     digitalWrite(REVERSE, LOW);
@@ -508,6 +522,11 @@ void setup() {
   digitalWrite(LOGIC_LOW,LOW);
   pinMode(ERASE_EEPROM,INPUT);
   digitalWrite(ERASE_EEPROM,HIGH);
+
+  //Sets up the SNES controller
+  snes.begin();
+  snes.connect();
+
   
   //Clear EEPROM values
   if (digitalRead(ERASE_EEPROM)== LOW) {
@@ -539,10 +558,10 @@ void loop() {
   //Prints debug data
   print_IO(); 
   
-  
   //Run display delay every 200 micro-sec while running alongside a fast 10 micro-sec loop
   if (intDisplayCounter < 20) {
-    intDisplayCounter++; }
+    intDisplayCounter++; 
+    }
   else {
     LCD_display_refresh();
     LCD_user_interface();
