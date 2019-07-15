@@ -93,7 +93,7 @@ void readIO() {
   bolTriggerR = snes.triggerR();
 
   //Reads the current sense
-  intCurrentSense = analogRead(A1); 
+  intCurrentSense = analogRead(A0); 
   }
 
 
