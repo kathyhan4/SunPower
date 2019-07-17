@@ -29,7 +29,7 @@ LiquidCrystal_PCF8574 lcd(0x27); // set the LCD address to 0x27 for a 16 chars a
 #define DROP_COUNTER_MEMORY_SPREAD_STOP 4000
 #define LOGIC_LOW 12
 #define ERASE_EEPROM 13
-#define OVERCURRENT_LIMIT 630
+#define OVERCURRENT_LIMIT 700
 #define ANALOG_FILTER_ORDER 20
 #define LIFT_TIMEOUT_ADDITION_MS 500
 #define DROP_DELAY_MS 300
@@ -135,12 +135,13 @@ void print_IO() {
     Serial.print("; State: Drop");
   }
   
+
+  Serial.print("; Limit Switch: ");
+  Serial.print(digitalRead(LIMITSWITCH));
   Serial.print("; Current Sense: ");
   Serial.print(intCurrentSense);
   Serial.print("; Current Sense Average: ");
   Serial.print(intCurrentSenseAverage);
-  Serial.print("; Limit Switch: ");
-  Serial.print(digitalRead(LIMITSWITCH));
   Serial.println("");
 }
 
