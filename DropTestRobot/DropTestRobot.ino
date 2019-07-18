@@ -68,6 +68,7 @@ SNESMiniController snes;
 bool bolOvercurrentError = false;
 bool bolLiftLimitError = false;
 bool bolPauseError = false;
+bool bolModuleStuck = false;
 
 
 //Read all IO pins/user inputs from controller 
@@ -167,7 +168,7 @@ void LCD_display_init() {
   
 void LCD_display_refresh() {
 // Refresh the LCD screen to set the location of the cursor, blank the text, and then print the label
-  if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false)){
+  if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false) && (bolModuleStuck == false)){
     //Prints magnet status if no errors are present
     lcd.setCursor(8,0);
     if (digitalRead(MAGNET) == LOW){
@@ -190,6 +191,10 @@ void LCD_display_refresh() {
     else if (bolPauseError == true){
       lcd.setCursor(0,0);
       lcd.print ("User Pressed Pause ");
+    }
+    else if (bolModuleStuck == true){
+      lcd.setCursor(0,0);
+      lcd.print ("Module Stuck        ") ;
     }
   }
   
@@ -365,10 +370,13 @@ void state_machine() {
         intState = 1;  // Reset State variable to move onto the next case
         delayStart = millis(); // start delay
         delayRunning = true; // not finished delay 
+        
         //Resets the error flags
         bolOvercurrentError = false;
         bolLiftLimitError = false;
         bolPauseError = false;
+        bolModuleStuck = false;
+        
         //Redraws the LCD
         LCD_display_init();
 
@@ -489,8 +497,17 @@ void state_machine() {
     case 5:
       //Makes a small delay to allow limit switch state to reset
       if (delayRunning && ((millis() - delayStart) >= DROP_DELAY_MS)) {
-        delayRunning = false; //
-        intState = 1;
+        //Checks to see if module is stuck
+        if (digitalRead(LIMITSWITCH) == HIGH){
+          //Sets module stuck as true
+          bolModuleStuck = true;
+          intState = 0;
+         } 
+         else{
+          //Goes to the next cycle of drops
+          delayRunning = false; 
+          intState = 1;
+         }
       } 
       break; 
 
