@@ -32,7 +32,7 @@ LiquidCrystal_PCF8574 lcd(0x27); // set the LCD address to 0x27 for a 16 chars a
 #define OVERCURRENT_LIMIT 730
 #define ANALOG_FILTER_ORDER 20
 #define LIFT_TIMEOUT_ADDITION_MS 500
-#define DROP_DELAY_MS 300
+#define DROP_DELAY_MS 500
 #define UNWIND_MS_PER_CM 125
 
 // Define variables
@@ -516,6 +516,7 @@ void state_machine() {
         if (digitalRead(LIMITSWITCH) == HIGH){
           //Sets module stuck as true
           bolModuleStuckError = true;
+          delayRunning = false; 
           intState = 0;
          } 
          else{
