@@ -25,15 +25,21 @@ LiquidCrystal_PCF8574 lcd(0x27); // set the LCD address to 0x27 for a 16 chars a
 #define LR 53  // LR button is not working --> need to trace the circuit
 #define PRESET_DROP_MEMORY_LOC 0
 #define HEIGHT_MEMORY_LOC 2
+#define CURRENT_SENSE_LIMIT_LOC 4
 #define DROP_COUNTER_MEMORY_SPREAD_START 10
 #define DROP_COUNTER_MEMORY_SPREAD_STOP 4000
 #define LOGIC_LOW 12
 #define ERASE_EEPROM 13
-#define OVERCURRENT_LIMIT 730
 #define ANALOG_FILTER_ORDER 20
 #define LIFT_TIMEOUT_ADDITION_MS 500
 #define DROP_DELAY_MS 500
 #define UNWIND_MS_PER_CM 125
+#define CURRENT_SENSE_AMP_VOLTAGE_GAIN 2
+#define CURRENT_SENSE_PORT A0
+#define ADC_MAX_BITS 1023
+#define ADC_VCC 5
+#define CURRENT_SENSE_NULL_VOLTAGE 2.5
+#define CURRENT_SENSE_MAX_CURRENT 5
 
 // Define variables
 int intState = 0;
@@ -57,7 +63,9 @@ int intDisplayCounter = 0;
 int intDropCounterMem = 10;
 int intCurrentSense = 0;  // current sensor
 int intLPF[ANALOG_FILTER_ORDER];
+float floLPF[ANALOG_FILTER_ORDER];
 int intCurrentSenseAverage = 0;
+float floCurrentSenseAverage = 0;
 int intUnwindDelay = 1000; 
 int intHoldDelay = 300;  // 1 second delay
 unsigned long delayStart = 0; // the time the delay started
@@ -70,7 +78,23 @@ bool bolLiftLimitError = false;
 bool bolPauseError = false;
 bool bolModuleStuckError = false;
 bool bolUnwindError = false;
+float floCurrentLimit = 2.2;
 
+
+//Returns the current from the motor
+float readMotorCurrent(){
+  float floADCVoltage = 0;
+  int intADC = 0;
+
+  //Reads the ADC
+  intADC = analogRead(CURRENT_SENSE_PORT);
+
+  //Calculates the ADC voltage
+  floADCVoltage = (float)((intADC/ADC_MAX_BITS)*ADC_VCC);
+
+  //Returns the current
+  return (float)(floADCVoltage - CURRENT_SENSE_NULL_VOLTAGE)*CURRENT_SENSE_AMP_VOLTAGE_GAIN;
+}
 
 //Read all IO pins/user inputs from controller 
 void readIO() {  
@@ -161,7 +185,7 @@ void LCD_display_init() {
   lcd.setBacklight(255);  // LCD settings
   lcd.home();
   lcd.clear();
-  lcd.print("Magnet: ");  
+  lcd.print("OC Trip Limit:");  
   lcd.setCursor(0,1);
   lcd.print("Preset Drops:");
   lcd.setCursor(0,2);
@@ -173,39 +197,43 @@ void LCD_display_init() {
 void LCD_display_refresh() {
 // Refresh the LCD screen to set the location of the cursor, blank the text, and then print the label
   if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false) && (bolModuleStuckError == false) && (bolUnwindError == false)){
-    //Prints magnet status if no errors are present
-    lcd.setCursor(8,0);
-    if (digitalRead(MAGNET) == LOW){
-      lcd.print("Off");
-    }
-    else{
-     lcd.print("On ");
-    }
+    lcd.setCursor(14,3);  // Update line 3
+    lcd.print("      ");  
+    lcd.setCursor(14,3);
+    lcd.print(intDropCounter); 
   }
   else{
     //Displays error
     if (bolOvercurrentError == true){
-      lcd.setCursor(0,0);
+      lcd.setCursor(0,3);
       lcd.print ("Overcurrent Trip    ");
     }
     else if (bolLiftLimitError == true){
-      lcd.setCursor(0,0);
+      lcd.setCursor(0,3);
       lcd.print ("Lift limit exceeded ");
     }
     else if (bolPauseError == true){
-      lcd.setCursor(0,0);
+      lcd.setCursor(0,3);
       lcd.print ("User Pressed Pause ");
     }
     else if (bolModuleStuckError == true){
-      lcd.setCursor(0,0);
+      lcd.setCursor(0,3);
       lcd.print ("Module Stuck        ") ;
     }
     else if (bolUnwindError == true){
-      lcd.setCursor(0,0);
+      lcd.setCursor(0,3);
       lcd.print ("Module Unwind Error ") ;
     }
   }
   
+  //Prints magnet status 
+  lcd.setCursor(19,0);
+  if (digitalRead(MAGNET) == LOW){
+    lcd.print(" ");
+  }
+  else{
+   lcd.print("M");
+  }
   lcd.setCursor(14,1);  // Update line 1
   lcd.print("      ");  // Blank the text 
   lcd.setCursor(14,1);
@@ -214,10 +242,6 @@ void LCD_display_refresh() {
   lcd.print("       ");
   lcd.setCursor(13,2);
   lcd.print(intHeight);
-  lcd.setCursor(14,3);  // Update line 3
-  lcd.print("      ");
-  lcd.setCursor(14,3);
-  lcd.print(intDropCounter);   
   }
 
 
@@ -233,9 +257,13 @@ void LCD_user_interface() {
       lcd.setCursor(13,2);
       lcd.blink(); 
       }
+     else if (intLineNumber == 0) {
+      lcd.setCursor(15,0);
+      lcd.blink(); 
+      }
     //Change rows using the up and down buttons
     if (bolUp == true) {
-      if (intLineNumber > 1) {
+      if (intLineNumber > 0) {
         intLineNumber--; }}
     else if (bolDown == true) {
       if (intLineNumber < 2) {
@@ -245,7 +273,11 @@ void LCD_user_interface() {
       if (intLineNumber == 1) {
         intPresetDrops += 100; }  // increment PresetDrops by 100
       else if (intLineNumber == 2) {
-        intHeight++; }}  // increment Height by 1
+        intHeight++; }  // increment Height by 1
+      else if ((intLineNumber == 0) && (floCurrentLimit < CURRENT_SENSE_MAX_CURRENT))  {
+        floCurrentLimit = floCurrentLimit + 0.1; 
+        }  // increment current limit by 0.1
+      }
     else if (bolLeft == true) {  //  Use left button to decrease value
       if (intLineNumber == 1) {
         intPresetDrops -= 100;  
@@ -255,6 +287,12 @@ void LCD_user_interface() {
         intHeight--;  
         if (intHeight < 1) {  // Height value of 1 cm is the lowest the user can choose
           intHeight = 1; 
+        }
+      }
+      else if (intLineNumber == 0) {
+        floCurrentLimit = floCurrentLimit - 0.1;   
+        if (floCurrentLimit < 0.1) {  // Height value of 1 cm is the lowest the user can choose
+          floCurrentLimit = 0.1; 
         }
       }
     }
@@ -341,24 +379,27 @@ void manual_control() {
 
 //Low pass filter for the current sense
 void filterCurrentSense() {
+  float floCurrentSenseReading = 0;
+  
   //Clears the average
-  intCurrentSenseAverage = 0;
+  floCurrentSenseAverage = 0;
    
   //Propagates the delay and feeds in the last value of the current sense
   for (int i =  0; i < (ANALOG_FILTER_ORDER-1); i++){
     //Moves the average from the N+1 to N
-    intLPF[i] = intLPF[i+1];
+    floLPF[i] = floLPF[i+1];
 
     //Sums the average
-    intCurrentSenseAverage = intCurrentSenseAverage + intLPF[i];
+    floCurrentSenseAverage = floCurrentSenseAverage +floLPF[i];
   }
 
   //Feeds the instantaneous current sense in
-  intLPF[ANALOG_FILTER_ORDER-1] = intCurrentSense;
-  intCurrentSenseAverage = intCurrentSenseAverage + intCurrentSense;
+  floCurrentSenseReading = readMotorCurrent();
+  floLPF[ANALOG_FILTER_ORDER-1] = floCurrentSenseReading;
+  floCurrentSenseAverage = floCurrentSenseAverage + floCurrentSenseReading;
 
   //Performs the average
-  intCurrentSenseAverage = int(intCurrentSenseAverage / ANALOG_FILTER_ORDER);
+  floCurrentSenseAverage = int(floCurrentSenseAverage / ANALOG_FILTER_ORDER);
 }
 
 //State machine
@@ -375,6 +416,7 @@ void state_machine() {
       if (bolStart == true) {  // Press Start button to begin the state machine
         EEPROM.put(PRESET_DROP_MEMORY_LOC, intPresetDrops);
         EEPROM.put(HEIGHT_MEMORY_LOC, intHeight);
+        EEPROM.put(CURRENT_SENSE_LIMIT_LOC, floCurrentLimit);
         intState = 1;  // Reset State variable to move onto the next case
         delayStart = millis(); // start delay
         delayRunning = true; // not finished delay 
@@ -416,7 +458,7 @@ void state_machine() {
         intState = 0;
       }
       //Checks for overcurrent
-      else if (intCurrentSenseAverage > OVERCURRENT_LIMIT){
+      else if (abs(floCurrentSenseAverage) > floCurrentLimit){
         //Turns everything off and goes to idle state
         digitalWrite(FORWARD, LOW);  
         digitalWrite(REVERSE, LOW);
@@ -608,6 +650,8 @@ void setup() {
   //Set up EEPROM value storage
   EEPROM.get(HEIGHT_MEMORY_LOC, intHeight);
   EEPROM.get(PRESET_DROP_MEMORY_LOC, intPresetDrops);
+  EEPROM.get(CURRENT_SENSE_LIMIT_LOC, floCurrentLimit);
+  
 
   //Reads the drop counter
   intDropCounter = EEPROM_read_last_count(); 
