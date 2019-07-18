@@ -29,7 +29,7 @@ LiquidCrystal_PCF8574 lcd(0x27); // set the LCD address to 0x27 for a 16 chars a
 #define DROP_COUNTER_MEMORY_SPREAD_STOP 4000
 #define LOGIC_LOW 12
 #define ERASE_EEPROM 13
-#define OVERCURRENT_LIMIT 700
+#define OVERCURRENT_LIMIT 730
 #define ANALOG_FILTER_ORDER 20
 #define LIFT_TIMEOUT_ADDITION_MS 500
 #define DROP_DELAY_MS 300
@@ -65,6 +65,10 @@ bool delayRunning = false; // true if still waiting for delay to finish
 bool bolMagnetOn = false;
 bool bolBReleasedBefore = true;
 SNESMiniController snes;
+bool bolOvercurrentError = false;
+bool bolLiftLimitError = false;
+bool bolPauseError = false;
+
 
 //Read all IO pins/user inputs from controller 
 void readIO() {  
@@ -163,12 +167,30 @@ void LCD_display_init() {
   
 void LCD_display_refresh() {
 // Refresh the LCD screen to set the location of the cursor, blank the text, and then print the label
-  lcd.setCursor(8,0);
-  if (digitalRead(MAGNET) == LOW){
-    lcd.print("Off");
+  if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false)){
+    //Prints magnet status if no errors are present
+    lcd.setCursor(8,0);
+    if (digitalRead(MAGNET) == LOW){
+      lcd.print("Off");
+    }
+    else{
+     lcd.print("On ");
+    }
   }
   else{
-   lcd.print("On ");
+    //Displays error
+    if (bolOvercurrentError == true){
+      lcd.setCursor(0,0);
+      lcd.print ("Overcurrent Trip    ");
+    }
+    else if (bolLiftLimitError == true){
+      lcd.setCursor(0,0);
+      lcd.print ("Lift limit exceeded ");
+    }
+    else if (bolPauseError == true){
+      lcd.setCursor(0,0);
+      lcd.print ("User Pressed Pause ");
+    }
   }
   
   lcd.setCursor(14,1);  // Update line 1
@@ -342,7 +364,14 @@ void state_machine() {
         EEPROM.put(HEIGHT_MEMORY_LOC, intHeight);
         intState = 1;  // Reset State variable to move onto the next case
         delayStart = millis(); // start delay
-        delayRunning = true; // not finished delay yet
+        delayRunning = true; // not finished delay 
+        //Resets the error flags
+        bolOvercurrentError = false;
+        bolLiftLimitError = false;
+        bolPauseError = false;
+        //Redraws the LCD
+        LCD_display_init();
+
 
         //Calculates the unwind time
         intUnwindDelay = int(UNWIND_MS_PER_CM*intHeight);
@@ -366,6 +395,7 @@ void state_machine() {
         digitalWrite(ENABLE, LOW);
         digitalWrite(MAGNET, LOW);
         delayRunning = false; 
+        bolLiftLimitError = true;
         intState = 0;
       }
       //Checks for overcurrent
@@ -375,6 +405,7 @@ void state_machine() {
         digitalWrite(REVERSE, LOW);
         digitalWrite(ENABLE, LOW);
         digitalWrite(MAGNET, LOW);  
+        bolOvercurrentError = true;
         intState = 0;
       }
       //Runs current state
@@ -471,14 +502,15 @@ void state_machine() {
       break; 
   }
 
-  //Checks for emergency abort
-  if (bolSelect == true){
+  //Checks for abort
+  if ((bolSelect == true) && (bolA == false)){
     //Turns everything off and goes to idle state
     digitalWrite(FORWARD, LOW);  
     digitalWrite(REVERSE, LOW);
     digitalWrite(ENABLE, LOW);
     digitalWrite(MAGNET, LOW);  
     delayRunning = false;
+    bolPauseError = true;
     intState = 0;
   }
 }
