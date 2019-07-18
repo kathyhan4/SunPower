@@ -140,6 +140,9 @@ void print_IO() {
   else if (intState == 4){
     Serial.print("; State: Drop");
   }
+  else if (intState == 5){
+    Serial.print("; State: Drop Delay");
+  }
   
 
   Serial.print("; Limit Switch: ");
