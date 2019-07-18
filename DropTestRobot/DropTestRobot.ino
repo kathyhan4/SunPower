@@ -68,7 +68,8 @@ SNESMiniController snes;
 bool bolOvercurrentError = false;
 bool bolLiftLimitError = false;
 bool bolPauseError = false;
-bool bolModuleStuck = false;
+bool bolModuleStuckError = false;
+bool bolUnwindError = false;
 
 
 //Read all IO pins/user inputs from controller 
@@ -168,7 +169,7 @@ void LCD_display_init() {
   
 void LCD_display_refresh() {
 // Refresh the LCD screen to set the location of the cursor, blank the text, and then print the label
-  if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false) && (bolModuleStuck == false)){
+  if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false) && (bolModuleStuckError == false) && (bolUnwindError = false)){
     //Prints magnet status if no errors are present
     lcd.setCursor(8,0);
     if (digitalRead(MAGNET) == LOW){
@@ -192,9 +193,13 @@ void LCD_display_refresh() {
       lcd.setCursor(0,0);
       lcd.print ("User Pressed Pause ");
     }
-    else if (bolModuleStuck == true){
+    else if (bolModuleStuckError == true){
       lcd.setCursor(0,0);
       lcd.print ("Module Stuck        ") ;
+    }
+    else if (bolUnwindError == true){
+      lcd.setCursor(0,0);
+      lcd.print ("Module Unwind Error ") ;
     }
   }
   
@@ -375,7 +380,8 @@ void state_machine() {
         bolOvercurrentError = false;
         bolLiftLimitError = false;
         bolPauseError = false;
-        bolModuleStuck = false;
+        bolModuleStuckError = false;
+        bolUnwindError = false;
         
         //Redraws the LCD
         LCD_display_init();
@@ -455,6 +461,12 @@ void state_machine() {
       digitalWrite(REVERSE, HIGH);
       digitalWrite(ENABLE, HIGH);
       digitalWrite(MAGNET, HIGH); 
+
+      //Checks to see if the limit switch is open (should be closed)
+      if (digitalRead(LIMITSWITCH) == LOW){
+        bolUnwindError = true;
+        intState = 0;
+      }
       
       //Checks to see if we're done unwinding
       if (delayRunning && ((millis() - delayStart) >= intUnwindDelay)) {
@@ -500,7 +512,7 @@ void state_machine() {
         //Checks to see if module is stuck
         if (digitalRead(LIMITSWITCH) == HIGH){
           //Sets module stuck as true
-          bolModuleStuck = true;
+          bolModuleStuckError = true;
           intState = 0;
          } 
          else{
