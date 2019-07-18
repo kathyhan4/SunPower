@@ -172,7 +172,7 @@ void LCD_display_init() {
   
 void LCD_display_refresh() {
 // Refresh the LCD screen to set the location of the cursor, blank the text, and then print the label
-  if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false) && (bolModuleStuckError == false) && (bolUnwindError = false)){
+  if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false) && (bolModuleStuckError == false) && (bolUnwindError == false)){
     //Prints magnet status if no errors are present
     lcd.setCursor(8,0);
     if (digitalRead(MAGNET) == LOW){
