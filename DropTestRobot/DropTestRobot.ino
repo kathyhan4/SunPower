@@ -197,7 +197,8 @@ void LCD_display_init() {
 void LCD_display_refresh() {
 // Refresh the LCD screen to set the location of the cursor, blank the text, and then print the label
   if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false) && (bolModuleStuckError == false) && (bolUnwindError == false)){
-    lcd.setCursor(14,3);  // Update line 3
+    //Refreshes drop counter
+    lcd.setCursor(14,3);
     lcd.print("      ");  
     lcd.setCursor(14,3);
     lcd.print(intDropCounter); 
@@ -234,11 +235,21 @@ void LCD_display_refresh() {
   else{
    lcd.print("M");
   }
-  lcd.setCursor(14,1);  // Update line 1
-  lcd.print("      ");  // Blank the text 
+
+  //Refreshes current limit
+  lcd.setCursor(15,0);  // Update line 1
+  lcd.print("     ");  // Blank the text 
+  lcd.setCursor(15,0);
+  lcd.print(floCurrentLimit);
+
+  //Refreshes preset drops
+  lcd.setCursor(14,1); 
+  lcd.print("      ");  
   lcd.setCursor(14,1);
-  lcd.print(intPresetDrops);  // Replace the blank text with the accurate value
-  lcd.setCursor(13,2);  // Update line 2
+  lcd.print(intPresetDrops);  
+
+  //Refreshes drop height
+  lcd.setCursor(13,2); 
   lcd.print("       ");
   lcd.setCursor(13,2);
   lcd.print(intHeight);
@@ -295,6 +306,14 @@ void LCD_user_interface() {
           floCurrentLimit = 0.1; 
         }
       }
+    }
+    else if ((bolTriggerL == true) || (bolTriggerR == true)){
+      //Clears all the errors
+      bolOvercurrentError = false;
+      bolLiftLimitError = false;
+      bolPauseError = false;
+      bolModuleStuckError = false;
+      bolUnwindError = false;
     }
   }
 }
