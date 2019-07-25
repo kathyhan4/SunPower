@@ -58,7 +58,7 @@ boolean bolTriggerR = false;
 int intHeight = 0; // height in cm
 int intDropCounter = 0;
 int intPresetDrops = 0;  
-int intLineNumber = 1; // row number
+int intLineNumber = 0; // row number
 int intDisplayCounter = 0;
 int intDropCounterMem = 10;
 int intCurrentSense = 0;  // current sensor
@@ -90,7 +90,8 @@ float readMotorCurrent(){
   intADC = analogRead(CURRENT_SENSE_PORT);
 
   //Calculates the ADC voltage
-  floADCVoltage = (float)((intADC/ADC_MAX_BITS)*ADC_VCC);
+  floADCVoltage = (float)(((float)intADC/(float)ADC_MAX_BITS)*(float)ADC_VCC);
+  
 
   //Returns the current
   return (float)(floADCVoltage - CURRENT_SENSE_NULL_VOLTAGE)*CURRENT_SENSE_AMP_VOLTAGE_GAIN;
@@ -172,9 +173,9 @@ void print_IO() {
   Serial.print("; Limit Switch: ");
   Serial.print(digitalRead(LIMITSWITCH));
   Serial.print("; Current Sense: ");
-  Serial.print(intCurrentSense);
+  Serial.print(readMotorCurrent());
   Serial.print("; Current Sense Average: ");
-  Serial.print(intCurrentSenseAverage);
+  Serial.print(floCurrentSenseAverage);
   Serial.println("");
 }
 
@@ -185,7 +186,7 @@ void LCD_display_init() {
   lcd.setBacklight(255);  // LCD settings
   lcd.home();
   lcd.clear();
-  lcd.print("OC Trip Limit:");  
+  lcd.print("OC Trip Amps:");  
   lcd.setCursor(0,1);
   lcd.print("Preset Drops:");
   lcd.setCursor(0,2);
@@ -237,9 +238,9 @@ void LCD_display_refresh() {
   }
 
   //Refreshes current limit
-  lcd.setCursor(15,0);  // Update line 1
+  lcd.setCursor(14,0);  // Update line 1
   lcd.print("     ");  // Blank the text 
-  lcd.setCursor(15,0);
+  lcd.setCursor(14,0);
   lcd.print(floCurrentLimit);
 
   //Refreshes preset drops
@@ -269,7 +270,7 @@ void LCD_user_interface() {
       lcd.blink(); 
       }
      else if (intLineNumber == 0) {
-      lcd.setCursor(15,0);
+      lcd.setCursor(14,0);
       lcd.blink(); 
       }
     //Change rows using the up and down buttons
@@ -307,13 +308,14 @@ void LCD_user_interface() {
         }
       }
     }
-    else if ((bolTriggerL == true) || (bolTriggerR == true)){
+    else if (bolA){
       //Clears all the errors
       bolOvercurrentError = false;
       bolLiftLimitError = false;
       bolPauseError = false;
       bolModuleStuckError = false;
       bolUnwindError = false;
+      LCD_display_init();
     }
   }
 }
@@ -389,7 +391,7 @@ void manual_control() {
   }
   
   //Resets the drop counter
-  if (bolA == true && bolSelect == true){
+  if ((bolTriggerL == true) && (bolTriggerR == true)){
     EEPROM_clear();
     intDropCounter = 0;
   }
@@ -418,7 +420,7 @@ void filterCurrentSense() {
   floCurrentSenseAverage = floCurrentSenseAverage + floCurrentSenseReading;
 
   //Performs the average
-  floCurrentSenseAverage = int(floCurrentSenseAverage / ANALOG_FILTER_ORDER);
+  floCurrentSenseAverage = (float)(floCurrentSenseAverage / ANALOG_FILTER_ORDER);
 }
 
 //State machine
@@ -597,7 +599,7 @@ void state_machine() {
   }
 
   //Checks for abort
-  if ((bolSelect == true) && (bolA == false)){
+  if (bolSelect == true){
     //Turns everything off and goes to idle state
     digitalWrite(FORWARD, LOW);  
     digitalWrite(REVERSE, LOW);
