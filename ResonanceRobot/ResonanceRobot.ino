@@ -289,7 +289,7 @@ void LCD_user_interface() {
         if (intPresetDrops < 1) { // PresetDrops value of 100 drops is the lowest the user can choose
           intDelay = 5; }}
       else if (intLineNumber == 2) {
-        intDelayDown += 5; }  
+        intDelayDown -= 5; }  
       else if (intLineNumber == 0) {
         floCurrentLimit = floCurrentLimit - 0.1;   
         if (floCurrentLimit < 0.1) {  // Height value of 1 cm is the lowest the user can choose
