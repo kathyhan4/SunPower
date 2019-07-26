@@ -27,6 +27,7 @@ LiquidCrystal_PCF8574 lcd(0x27); // set the LCD address to 0x27 for a 16 chars a
 #define HEIGHT_MEMORY_LOC 2
 #define CURRENT_SENSE_LIMIT_LOC 4
 #define DELAY_LOC 8
+#define DELAY_LOC_DOWN 4002
 #define DROP_COUNTER_MEMORY_SPREAD_START 10
 #define DROP_COUNTER_MEMORY_SPREAD_STOP 4000
 #define LOGIC_LOW 12
@@ -81,6 +82,7 @@ bool bolModuleStuckError = false;
 bool bolUnwindError = false;
 float floCurrentLimit = 2.2;
 int intDelay = 100;
+int intDelayDown = 100;
 
 
 //Returns the current from the motor
@@ -190,9 +192,9 @@ void LCD_display_init() {
   lcd.clear();
   lcd.print("OC Trip Amps:");  
   lcd.setCursor(0,1);
-  lcd.print("Time (ms):");
-  //lcd.setCursor(0,2);
-  //lcd.print("Height (cm):");
+  lcd.print("Time Lift (ms):");
+  lcd.setCursor(0,2);
+  lcd.print("Time Drop (ms):");
   //lcd.setCursor(0,3);
   //lcd.print("Drop Counter:");; 
   }
@@ -237,11 +239,17 @@ void LCD_display_refresh() {
   lcd.setCursor(14,0);
   lcd.print(floCurrentLimit);
 
-  //Refreshes delay time 
-  lcd.setCursor(12,1); 
-  lcd.print("      ");  
-  lcd.setCursor(12,1);
+  //Refreshes delay time up
+  lcd.setCursor(16,1); 
+  lcd.print("    ");  
+  lcd.setCursor(16,1);
   lcd.print(intDelay);  
+
+  //Refreshes delay time down
+  lcd.setCursor(16,2); 
+  lcd.print("    ");  
+  lcd.setCursor(16,2);
+  lcd.print(intDelayDown);  
 
   }
 
@@ -263,12 +271,14 @@ void LCD_user_interface() {
       if (intLineNumber > 0) {
         intLineNumber--; }}
     else if (bolDown == true) {
-      if (intLineNumber < 1) {
+      if (intLineNumber < 2) {
         intLineNumber++; }}
     //Change the values by using the left and right buttons
     else if (bolRight == true) { //  Use right button to increase value
       if (intLineNumber == 1) {
         intDelay += 5; }  // increment PresetDrops by 100
+      else if (intLineNumber == 2) {
+        intDelayDown += 5; }  
       else if ((intLineNumber == 0) && (floCurrentLimit < CURRENT_SENSE_MAX_CURRENT))  {
         floCurrentLimit = floCurrentLimit + 0.1; 
         }  // increment current limit by 0.1
@@ -278,6 +288,8 @@ void LCD_user_interface() {
         intDelay -= 5; 
         if (intPresetDrops < 1) { // PresetDrops value of 100 drops is the lowest the user can choose
           intDelay = 5; }}
+      else if (intLineNumber == 2) {
+        intDelayDown += 5; }  
       else if (intLineNumber == 0) {
         floCurrentLimit = floCurrentLimit - 0.1;   
         if (floCurrentLimit < 0.1) {  // Height value of 1 cm is the lowest the user can choose
@@ -416,6 +428,7 @@ void state_machine() {
         //EEPROM.put(HEIGHT_MEMORY_LOC, intHeight);
         EEPROM.put(CURRENT_SENSE_LIMIT_LOC, floCurrentLimit);
         EEPROM.put(DELAY_LOC, intDelay);
+        EEPROM.put(DELAY_LOC_DOWN, intDelayDown);
         intState = 1;  // Reset State variable to move onto the next case
         delayStart = millis(); // start delay
         delayRunning = true; // not finished delay 
@@ -476,7 +489,7 @@ void state_machine() {
 
       
       //Checks to see if we're done unwinding
-      if (delayRunning && ((millis() - delayStart) >= intDelay)) {
+      if (delayRunning && ((millis() - delayStart) >= intDelayDown)) {
         delayRunning = true;
         delayStart = millis(); // start delay
         intState = 1;
@@ -566,6 +579,7 @@ void setup() {
   //EEPROM.get(PRESET_DROP_MEMORY_LOC, intPresetDrops);
   EEPROM.get(CURRENT_SENSE_LIMIT_LOC, floCurrentLimit);
   EEPROM.get(DELAY_LOC, intDelay);
+  EEPROM.get(DELAY_LOC_DOWN, intDelayDown);
 
   //Checks for weird numbers
   if ((intDelay > 0) && (intDelay < 2000)){
@@ -574,6 +588,15 @@ void setup() {
   else{
     //Sets delay to 100
     intDelay = 100;
+  }
+
+  //Checks for weird numbers
+  if ((intDelayDown > 0) && (intDelayDown < 2000)){
+    //Do nothing
+  }
+  else{
+    //Sets delay to 100
+    intDelayDown = 100;
   }
 
 }
