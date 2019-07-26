@@ -283,7 +283,7 @@ void LCD_user_interface() {
     //Change the values by using the left and right buttons
     else if (bolRight == true) { //  Use right button to increase value
       if (intLineNumber == 1) {
-        intPresetDrops += 100; }  // increment PresetDrops by 100
+        intPresetDrops += 1000; }  // increment PresetDrops by 100
       else if (intLineNumber == 2) {
         intHeight++; }  // increment Height by 1
       else if ((intLineNumber == 0) && (floCurrentLimit < CURRENT_SENSE_MAX_CURRENT))  {
@@ -292,9 +292,9 @@ void LCD_user_interface() {
       }
     else if (bolLeft == true) {  //  Use left button to decrease value
       if (intLineNumber == 1) {
-        intPresetDrops -= 100;  
-        if (intPresetDrops < 100) { // PresetDrops value of 100 drops is the lowest the user can choose
-          intPresetDrops = 100; }}
+        intPresetDrops -= 1000;  
+        if (intPresetDrops < 1000) { // PresetDrops value of 100 drops is the lowest the user can choose
+          intPresetDrops = 1000; }}
       else if (intLineNumber == 2) {
         intHeight--;  
         if (intHeight < 1) {  // Height value of 1 cm is the lowest the user can choose
