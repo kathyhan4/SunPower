@@ -26,7 +26,7 @@ LiquidCrystal_PCF8574 lcd(0x27); // set the LCD address to 0x27 for a 16 chars a
 #define PRESET_DROP_MEMORY_LOC 0
 #define HEIGHT_MEMORY_LOC 2
 #define CURRENT_SENSE_LIMIT_LOC 4
-#define DROP_COUNTER_MEMORY_SPREAD_START 10
+#define DROP_COUNTER_MEMORY_SPREAD_START 100
 #define DROP_COUNTER_MEMORY_SPREAD_STOP 4000
 #define LOGIC_LOW 12
 #define ERASE_EEPROM 13
@@ -56,8 +56,8 @@ boolean bolSelect = false;
 boolean bolTriggerL = false;
 boolean bolTriggerR = false;
 int intHeight = 0; // height in cm
-int intDropCounter = 0;
-int intPresetDrops = 0;  
+long intDropCounter = 0;
+long intPresetDrops = 0;  
 int intLineNumber = 0; // row number
 int intDisplayCounter = 0;
 int intDropCounterMem = 10;
@@ -176,7 +176,9 @@ void print_IO() {
   Serial.print(readMotorCurrent());
   Serial.print("; Current Sense Average: ");
   Serial.print(floCurrentSenseAverage);
-  Serial.println("");
+  Serial.print("");
+  Serial.print("; Max Drops: ");
+  Serial.println(intPresetDrops);
 }
 
 
@@ -188,7 +190,7 @@ void LCD_display_init() {
   lcd.clear();
   lcd.print("OC Trip Amps:");  
   lcd.setCursor(0,1);
-  lcd.print("Preset Drops:");
+  lcd.print("Max Drops:");
   lcd.setCursor(0,2);
   lcd.print("Height (cm):");
   lcd.setCursor(0,3);
@@ -200,7 +202,7 @@ void LCD_display_refresh() {
   if ((bolOvercurrentError == false) && (bolLiftLimitError == false) && (bolPauseError == false) && (bolModuleStuckError == false) && (bolUnwindError == false)){
     //Refreshes drop counter
     lcd.setCursor(14,3);
-    lcd.print("      ");  
+    lcd.print("         ");  
     lcd.setCursor(14,3);
     lcd.print(intDropCounter); 
   }
@@ -245,7 +247,7 @@ void LCD_display_refresh() {
 
   //Refreshes preset drops
   lcd.setCursor(14,1); 
-  lcd.print("      ");  
+  lcd.print("         ");  
   lcd.setCursor(14,1);
   lcd.print(intPresetDrops);  
 
@@ -283,7 +285,10 @@ void LCD_user_interface() {
     //Change the values by using the left and right buttons
     else if (bolRight == true) { //  Use right button to increase value
       if (intLineNumber == 1) {
-        intPresetDrops += 1000; }  // increment PresetDrops by 100
+        if (intPresetDrops < 999999000){
+          intPresetDrops += 1000; 
+          }  // increment PresetDrops by 1000
+        }
       else if (intLineNumber == 2) {
         intHeight++; }  // increment Height by 1
       else if ((intLineNumber == 0) && (floCurrentLimit < CURRENT_SENSE_MAX_CURRENT))  {
@@ -293,7 +298,7 @@ void LCD_user_interface() {
     else if (bolLeft == true) {  //  Use left button to decrease value
       if (intLineNumber == 1) {
         intPresetDrops -= 1000;  
-        if (intPresetDrops < 1000) { // PresetDrops value of 100 drops is the lowest the user can choose
+        if (intPresetDrops < 1000) { // PresetDrops value of 1000 drops is the lowest the user can choose
           intPresetDrops = 1000; }}
       else if (intLineNumber == 2) {
         intHeight--;  
@@ -322,17 +327,17 @@ void LCD_user_interface() {
 
 //Clears the EEPROM of all drop counter data
 void EEPROM_clear() {
-  int Z = 0;
+  long Z = 0;
   for (int i = DROP_COUNTER_MEMORY_SPREAD_START; i <= DROP_COUNTER_MEMORY_SPREAD_STOP; i+=2) {
     EEPROM.put(i, Z); 
   }
 }
 
 //Returns the last drop counter value and sets the drop counter index
-int EEPROM_read_last_count() {
+unsigned int EEPROM_read_last_count() {
 // Find and save the last drop count before the program reset occurred
-  int intMaxNum = 0;
-  int intCurrentNum = 0;
+  long intMaxNum = 0;
+  long intCurrentNum = 0;
   for (int i = DROP_COUNTER_MEMORY_SPREAD_START; i <= DROP_COUNTER_MEMORY_SPREAD_STOP; i+=2) {
     EEPROM.get(i, intCurrentNum);
     if (intCurrentNum > intMaxNum) {
@@ -555,10 +560,15 @@ void state_machine() {
       if (intDropCounter < intPresetDrops) {  
         intState = 5; 
         intDropCounter++;
-        EEPROM.put(intDropCounterMem, intDropCounter);
-        intDropCounterMem += 2;
-        if (intDropCounterMem > DROP_COUNTER_MEMORY_SPREAD_STOP) {  // If exceed memory capacity, reset and overwrite data from the beginning
-          intDropCounterMem = DROP_COUNTER_MEMORY_SPREAD_START; }
+
+        //Stores the drop counter every 100 drops
+        if ((intDropCounter % 100) == 0){
+          EEPROM.put(intDropCounterMem, intDropCounter);
+          intDropCounterMem += 4;
+          if (intDropCounterMem > DROP_COUNTER_MEMORY_SPREAD_STOP) {  // If exceed memory capacity, reset and overwrite data from the beginning
+            intDropCounterMem = DROP_COUNTER_MEMORY_SPREAD_START; }
+        }
+        
 
         //Start millisDelay
         delayStart = millis(); // start delay
@@ -670,12 +680,17 @@ void setup() {
   
   //Set up EEPROM value storage
   EEPROM.get(HEIGHT_MEMORY_LOC, intHeight);
-  EEPROM.get(PRESET_DROP_MEMORY_LOC, intPresetDrops);
+  EEPROM.get(PRESET_DROP_MEMORY_LOC, intPresetDrops); 
   EEPROM.get(CURRENT_SENSE_LIMIT_LOC, floCurrentLimit);
   
 
   //Reads the drop counter
   intDropCounter = EEPROM_read_last_count(); 
+
+  //Checks the drop counter to see if it's wrong and clears the EEPROM
+  if ((intDropCounter < 1000) || (intDropCounter > 999999000)){
+    intDropCounter = 1000;
+  }
 }
 
 
