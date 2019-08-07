@@ -3,6 +3,9 @@ from scipy import fftpack
 from scipy import signal
 import numpy as np
 from numpy import genfromtxt
+from skimage import util
+
+
 
 #Sampling rate, or number of measurements per second
 f_s = 400
@@ -27,6 +30,33 @@ plt.xlim([0,200])
 plt.show()
 
 
+
+#Plots FFT with hanning window - need to really understand what's going on here (I currently understand somewhat, but not 100%)
+
+
+M = 1024
+L = len(x)
+
+slices = util.view_as_windows(x, window_shape=(M,), step=100)
+win = np.hanning(M + 1)[:-1]
+slices = slices * win
+slices = slices.T
+print('Shape of `slices`:', slices.shape)
+
+spectrum = np.fft.fft(slices, axis=0)[:M // 2 + 1:-1]
+spectrum = np.abs(spectrum)
+
+f, ax = plt.subplots(figsize=(4.8, 2.4))
+
+S = np.abs(spectrum)
+S = 20 * np.log10(S / np.max(S))
+
+ax.imshow(S, origin='lower', cmap='viridis',extent=(0, L/60/f_s, 0, f_s / 2 ))
+ax.axis('tight')
+ax.set_ylabel('Frequency [Hz]')
+ax.set_xlabel('Time [min]');
+
+plt.show()
 
 ##freqs, psd = signal.welch(x)
 ##
