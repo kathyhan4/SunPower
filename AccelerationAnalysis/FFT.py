@@ -11,7 +11,7 @@ from skimage import util
 f_s = 400
 
 #Imports the data into CSV
-myimport = genfromtxt('SSX63344 second half.csv', delimiter=',')
+myimport = genfromtxt('SSX04081.csv', delimiter=',')
 
 #Pulls out the time domain data of the Z axis
 x = myimport[:,3]
@@ -49,7 +49,7 @@ spectrum = np.abs(spectrum)
 f, ax = plt.subplots(figsize=(4.8, 2.4))
 
 S = np.abs(spectrum)
-S = 20 * np.log10(S / np.max(S))
+S = 10 * np.log10(S / np.max(S))
 
 ax.imshow(S, origin='lower', cmap='viridis',extent=(0, L/60/f_s, 0, f_s / 2 ))
 ax.axis('tight')
