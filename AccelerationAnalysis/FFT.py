@@ -6,7 +6,8 @@ from numpy import genfromtxt
 from skimage import util
 import matplotlib
 from scipy.signal import butter, lfilter, freqz
-
+import datetime
+import csv
 
 
 def butter_lowpass(cutoff, fs, order=5):
@@ -24,7 +25,7 @@ def butter_lowpass_filter(data, cutoff, fs, order=5):
 fs = 400
 
 #Imports the data into CSV
-myimport = genfromtxt('SSX04081.csv', delimiter=',')
+myimport = genfromtxt('SSX63344 2 minutes driving.csv', delimiter=',')
 
 #Pulls out the time domain data of the Z axis
 x_raw = myimport[:,3]
@@ -93,6 +94,17 @@ plt.xlabel('Frequency')
 plt.ylabel('Power')
 plt.tight_layout()
 plt.show()
+
+#Exports data to CSV
+now = datetime.datetime.now()
+
+with open('PSD Data ' + now.strftime("%Y-%m-%d %H %M") + '.csv', mode='w', newline='') as datafile:
+    PSD_Writer = csv.writer(datafile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    PSD_Writer.writerow(['Frequency (Hz)', 'Amplitude (G^2)'])
+    for x in range(len(freqs)):
+        PSD_Writer.writerow([freqs[x], psd[x]])
+
+
 
 ##freqs, psd = signal.welch(x)
 ##
